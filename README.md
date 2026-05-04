@@ -26,6 +26,8 @@ AI News Agent is a Python 3.11 bot that fetches trending tech and AI news, gener
    cp .env.example .env
    ```
 
+   `GROQ_MODEL` defaults to `llama-3.3-70b-versatile`, Groq's recommended replacement for the retired `llama3-70b-8192` model.
+
 3. Get a Groq API key by signing in at [console.groq.com](https://console.groq.com/), opening API Keys, and creating a new key.
 
 4. Get a NewsAPI key by signing up at [newsapi.org](https://newsapi.org/) and copying your free developer API key.
@@ -62,6 +64,12 @@ pytest
 
 Open your GitHub repository, go to `Actions`, choose the `AI News Agent` workflow, and click the `Run workflow` button.
 
+## Error notifications
+
+If the agent fails during a run, it logs the full traceback, sends a concise error notification to the configured Telegram chat, and exits with code `1` so GitHub Actions marks the run as failed. If Telegram itself is unavailable or misconfigured, the failure is still logged and the workflow still fails.
+
+For Telegram `Bad Request: chat not found`, check that `TELEGRAM_CHAT_ID` is a numeric user ID, a group/channel ID such as `-100...`, or a public `@channelusername`. Also make sure you have started the bot in Telegram, or added the bot to the target group/channel with permission to post.
+
 ## Folder structure explanation
 
 - `.github/workflows/news_agent.yml` runs the daily GitHub Actions job and commits deduplication state.
@@ -76,4 +84,4 @@ Open your GitHub repository, go to `Actions`, choose the `AI News Agent` workflo
 
 ## How to customize topics / tone
 
-To customize topics, edit `KEYWORDS`, `RSS_FEEDS`, or `NEWSAPI_QUERY` in `agent/fetcher.py`. To customize writing style, edit `SYSTEM_PROMPT` or the user prompt template in `agent/generator.py`.
+To customize topics, edit `KEYWORDS`, `RSS_FEEDS`, or `NEWSAPI_QUERY` in `agent/fetcher.py`. To customize writing style, edit `SYSTEM_PROMPT` or the user prompt template in `agent/generator.py`. To change Groq models without editing code, set `GROQ_MODEL` in `.env` or your GitHub Actions environment.

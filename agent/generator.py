@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import json
 import logging
+import ast
 from typing import Any
 
 from groq import Groq
 
-from config import GROQ_API_KEY
+from config import GROQ_API_KEY, GROQ_MODEL
 
 
 logger = logging.getLogger(__name__)
-MODEL = "llama3-70b-8192"
+MODEL = GROQ_MODEL
 SYSTEM_PROMPT = (
     "You are a sharp, insightful tech Twitter account with 500k followers.\n"
     "You write punchy, clear posts that cut through hype. No cringe. No \n"
@@ -29,11 +30,11 @@ def generate_post(stories: list[dict], groq_api_key: str | None = None) -> dict:
     formatted_stories = _format_stories(stories)
     prompt = _build_prompt(formatted_stories)
 
+    content = _call_groq(client, prompt)
     try:
-        content = _call_groq(client, prompt)
-        return _validate_post(_parse_json_response(content))
-    except Exception:
-        logger.exception("Failed to parse Groq response; retrying once")
+        return _validate_post(_parse_json_response(content), stories)
+    except (json.JSONDecodeError, SyntaxError, ValueError, TypeError):
+        logger.exception("Failed to parse or validate Groq response; retrying once")
 
     retry_prompt = (
         "Return only valid JSON with keys post, replies, share_link, references, story_title. "
@@ -41,7 +42,7 @@ def generate_post(stories: list[dict], groq_api_key: str | None = None) -> dict:
         f"{formatted_stories}"
     )
     content = _call_groq(client, retry_prompt)
-    return _validate_post(_parse_json_response(content))
+    return _validate_post(_parse_json_response(content), stories)
 
 
 def _call_groq(client: Groq, user_prompt: str) -> str:
@@ -53,6 +54,7 @@ def _call_groq(client: Groq, user_prompt: str) -> str:
         ],
         temperature=0.7,
         max_tokens=800,
+        response_format={"type": "json_object"},
     )
     return response.choices[0].message.content or ""
 
@@ -99,12 +101,14 @@ def _build_prompt(formatted_stories: str) -> str:
 
 
 def _parse_json_response(content: str) -> dict:
-    cleaned = _strip_markdown_fence(content)
+    cleaned = _extract_json_object(_strip_markdown_fence(content))
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        normalized = cleaned.replace("'", '"')
-        return json.loads(normalized)
+        parsed = ast.literal_eval(cleaned)
+        if not isinstance(parsed, dict):
+            raise ValueError("Groq response JSON must be an object")
+        return parsed
 
 
 def _strip_markdown_fence(content: str) -> str:
@@ -119,21 +123,44 @@ def _strip_markdown_fence(content: str) -> str:
     return cleaned
 
 
-def _validate_post(post: dict[str, Any]) -> dict:
+def _extract_json_object(content: str) -> str:
+    start = content.find("{")
+    end = content.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return content
+    return content[start : end + 1]
+
+
+def _validate_post(post: dict[str, Any], stories: list[dict] | None = None) -> dict:
     required = ["post", "replies", "share_link", "references", "story_title"]
     missing = [key for key in required if key not in post]
     if missing:
         raise ValueError(f"Generated post missing required keys: {', '.join(missing)}")
 
+    stories = stories or []
+    story_urls = {str(story.get("url", "")).strip() for story in stories if story.get("url")}
+    fallback_story = stories[0] if stories else {}
+
     post["post"] = str(post["post"]).strip()
-    post["replies"] = post["replies"] if isinstance(post["replies"], list) else []
-    post["references"] = post["references"] if isinstance(post["references"], list) else []
+    post["replies"] = [str(reply).strip() for reply in post["replies"]] if isinstance(post["replies"], list) else []
+    post["references"] = [str(ref).strip() for ref in post["references"]] if isinstance(post["references"], list) else []
     post["share_link"] = str(post["share_link"]).strip()
     post["story_title"] = str(post["story_title"]).strip()
+
+    if story_urls and post["share_link"] not in story_urls:
+        logger.warning("Generated share_link was not a fetched story URL; using top story URL")
+        post["share_link"] = str(fallback_story.get("url", "")).strip()
+
+    if not post["story_title"] and fallback_story:
+        post["story_title"] = str(fallback_story.get("title", "")).strip()
+
+    references = [ref for ref in post["references"] if ref]
+    if post["share_link"] and post["share_link"] not in references:
+        references.insert(0, post["share_link"])
+    post["references"] = list(dict.fromkeys(references))[:3]
 
     for part in [post["post"], *post["replies"]]:
         if len(part) > 280:
             raise ValueError("Generated post part exceeds 280 characters")
 
     return post
-

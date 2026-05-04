@@ -18,6 +18,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 REQUIRED_ENV_VARS = {
     "GROQ_API_KEY": GROQ_API_KEY,
@@ -36,4 +37,3 @@ def validate_config() -> None:
             + ", ".join(missing)
             + ". Set them in .env locally or GitHub Actions secrets in CI."
         )
-
