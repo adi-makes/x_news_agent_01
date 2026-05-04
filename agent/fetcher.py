@@ -18,34 +18,154 @@ from config import NEWSAPI_KEY
 logger = logging.getLogger(__name__)
 
 RSS_FEEDS = [
+    # Hacker News – dev community pulse
     "https://hnrss.org/frontpage",
-    "https://feeds.feedburner.com/TechCrunch",
-    "https://www.artificialintelligence-news.com/feed/",
-    "https://venturebeat.com/feed/",
-    "https://techcrunch.com/category/artificial-intelligence/feed/",
+    # The Batch – deeplearning.ai weekly AI digest
+    "https://www.deeplearning.ai/the-batch/feed/",
+    # Import AI – Jack Clark's newsletter
+    "https://importai.substack.com/feed",
+    # Interconnects – AI research commentary
+    "https://www.interconnects.ai/feed",
+    # Ahead of AI – Sebastian Raschka
+    "https://magazine.sebastianraschka.com/feed",
+    # Simon Willison's blog – LLMs, open-source AI tools
+    "https://simonwillison.net/atom/everything/",
+    # Hugging Face blog
+    "https://huggingface.co/blog/feed.xml",
+    # OpenAI blog
+    "https://openai.com/blog/rss.xml",
+    # Google DeepMind blog
+    "https://deepmind.google/blog/rss.xml",
+    # Anthropic news
+    "https://www.anthropic.com/rss.xml",
+    # NVIDIA technical blog
+    "https://blogs.nvidia.com/feed/",
+    # The Verge – AI section
+    "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+    # Ars Technica – AI section
+    "https://feeds.arstechnica.com/arstechnica/technology-lab",
 ]
 
 NEWSAPI_URL = "https://newsapi.org/v2/everything"
-NEWSAPI_QUERY = "artificial intelligence OR LLM OR machine learning OR tech startup"
+NEWSAPI_QUERY = (
+    "LLM OR \"large language model\" OR \"AI model\" OR \"foundation model\" "
+    "OR \"AI agent\" OR \"AI framework\" OR OpenAI OR Anthropic OR DeepSeek "
+    "OR Gemini OR Claude OR GPT OR Llama OR Mistral OR NVIDIA OR \"open source AI\" "
+    "OR benchmark OR \"model release\" OR \"AI coding\" OR \"code generation\""
+)
 
+# Keyword scoring – focused on model releases, frameworks, dev tooling
 KEYWORDS = [
-    "ai",
-    "llm",
-    "gpt",
-    "claude",
-    "gemini",
+    # Model families & labs
     "openai",
     "anthropic",
-    "robotics",
-    "chip",
+    "deepseek",
+    "mistral",
+    "llama",
+    "gemini",
+    "claude",
+    "gpt",
+    "grok",
+    "qwen",
+    "phi",
+    "cohere",
     "nvidia",
+    "cuda",
+
+    # Model/release language
+    "llm",
+    "large language model",
+    "foundation model",
+    "model release",
+    "benchmark",
+    "mmlu",
+    "swe-bench",
+    "humaneval",
+    "evals",
+    "fine-tuning",
+    "fine-tune",
+    "pre-training",
+    "inference",
+    "quantization",
+    "gguf",
+    "ggml",
+
+    # Agents & reasoning
+    "ai agent",
+    "agentic",
+    "multi-agent",
+    "reasoning model",
+    "chain of thought",
+    "rag",
+    "retrieval augmented",
+    "tool use",
+    "function calling",
+    "mcp",
+    "model context protocol",
+
+    # Frameworks & tooling
+    "langchain",
+    "langgraph",
+    "llamaindex",
+    "autogen",
+    "crewai",
+    "dspy",
+    "vllm",
+    "ollama",
+    "hugging face",
+    "transformers",
+    "diffusers",
+    "pytorch",
+    "jax",
+    "triton",
+    "openrouter",
+
+    # Coding & software engineering AI
+    "copilot",
+    "cursor",
+    "devin",
+    "swe-agent",
+    "code generation",
+    "ai coding",
+    "codegen",
+    "codebase",
+
+    # Open source
     "open source",
-    "startup",
-    "machine learning",
-    "deep learning",
-    "neural",
-    "model",
-    "agent",
+    "open weights",
+    "open model",
+
+    # Hardware
+    "gpu",
+    "tpu",
+    "h100",
+    "gb200",
+    "blackwell",
+    "inference chip",
+]
+
+# Words that strongly signal the story is NOT software/AI-dev focused
+EXCLUDE_KEYWORDS = [
+    "healthcare",
+    "medical",
+    "clinical",
+    "hospital",
+    "patient",
+    "drug discovery",
+    "cancer",
+    "radiology",
+    "education policy",
+    "climate change",
+    "agriculture",
+    "farming",
+    "real estate",
+    "insurance",
+    "legal advice",
+    "law firm",
+    "retail",
+    "fashion",
+    "restaurant",
+    "food delivery",
 ]
 
 
@@ -55,7 +175,11 @@ def fetch_stories(newsapi_key: str | None = None) -> list[dict]:
     cutoff = now - timedelta(hours=24)
     raw_stories = _fetch_rss_stories(now) + _fetch_newsapi_stories(newsapi_key or NEWSAPI_KEY, now)
     filtered = [_with_score(story, now) for story in raw_stories if _is_recent(story, cutoff)]
-    filtered = [story for story in filtered if story["_keyword_count"] > 0]
+    # Must match at least 2 keywords AND not be excluded
+    filtered = [
+        story for story in filtered
+        if story["_keyword_count"] >= 2 and not story["_excluded"]
+    ]
     unique = _dedupe_by_url(filtered)
     ranked = sorted(unique, key=lambda story: story["_score"], reverse=True)
 
@@ -218,14 +342,22 @@ def _is_recent(story: dict, cutoff: datetime) -> bool:
 
 def _with_score(story: dict, now: datetime) -> dict:
     text = f"{story.get('title', '')} {story.get('summary', '')}".lower()
+
     keyword_count = sum(1 for keyword in KEYWORDS if keyword in text)
+    excluded = any(kw in text for kw in EXCLUDE_KEYWORDS)
+
     published_at = _parse_datetime(story.get("published_at"), now) or now
     age_seconds = max((now - published_at).total_seconds(), 0)
     recency_score = max(0.0, 1.0 - (age_seconds / 86400))
 
+    # Bonus: bump stories from first-party lab/tool sources higher
+    priority_sources = {"openai", "anthropic", "deepmind", "hugging face", "nvidia", "deepseek"}
+    source_bonus = 2.0 if any(ps in story.get("source", "").lower() for ps in priority_sources) else 0.0
+
     scored = dict(story)
     scored["_keyword_count"] = keyword_count
-    scored["_score"] = keyword_count + recency_score
+    scored["_excluded"] = excluded
+    scored["_score"] = keyword_count + recency_score + source_bonus
     return scored
 
 
@@ -238,4 +370,3 @@ def _dedupe_by_url(stories: list[dict]) -> list[dict]:
         if url not in unique or story["_score"] > unique[url]["_score"]:
             unique[url] = story
     return list(unique.values())
-
