@@ -1,0 +1,2 @@
+"""AI News Agent package."""
+
