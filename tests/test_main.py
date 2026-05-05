@@ -54,6 +54,34 @@ def test_main_happy_path_marks_sent_after_send(monkeypatch):
     mark_sent.assert_called_once_with("https://example.com/openai-agent")
 
 
+def test_main_sends_status_when_no_stories(monkeypatch):
+    status = Mock()
+    monkeypatch.setattr(main, "validate_config", Mock())
+    monkeypatch.setattr(main.fetcher, "fetch_stories", Mock(return_value=[]))
+    monkeypatch.setattr(main.sender, "send_status_to_telegram", status)
+
+    assert main.main() == 0
+
+    status.assert_called_once()
+    assert status.call_args.args[0] == "No post sent today."
+    assert "No fresh AI or tech stories" in status.call_args.args[1][0]
+
+
+def test_main_sends_status_when_all_stories_seen(monkeypatch):
+    status = Mock()
+    monkeypatch.setattr(main, "validate_config", Mock())
+    monkeypatch.setattr(main.fetcher, "fetch_stories", Mock(return_value=[_story()]))
+    monkeypatch.setattr(main.dedup, "filter_seen", Mock(return_value=[]))
+    monkeypatch.setattr(main.sender, "send_status_to_telegram", status)
+
+    assert main.main() == 0
+
+    status.assert_called_once()
+    assert status.call_args.args[0] == "No post sent today."
+    assert "Fetched 1 candidate stories." in status.call_args.args[1]
+    assert "data/seen_stories.json" in status.call_args.args[1][1]
+
+
 def test_main_rejects_malformed_story(monkeypatch):
     notify = Mock(return_value=True)
     monkeypatch.setattr(main, "validate_config", Mock())

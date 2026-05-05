@@ -55,6 +55,22 @@ def send_error_to_telegram(
     return True
 
 
+def send_status_to_telegram(
+    title: str,
+    details: list[str] | None = None,
+    bot_token: str | None = None,
+    chat_id: str | None = None,
+) -> None:
+    """Send a non-error run status message to Telegram."""
+    _send_message(
+        format_status_message(title, details or []),
+        bot_token=bot_token,
+        chat_id=chat_id,
+        parse_mode="HTML",
+    )
+    logger.info("Telegram status message sent successfully")
+
+
 def _send_message(
     message: str,
     bot_token: str | None = None,
@@ -157,6 +173,19 @@ def format_error_message(title: str, details: str) -> str:
         ]
     )
     return _truncate_message(message)
+
+
+def format_status_message(title: str, details: list[str]) -> str:
+    """Build a Telegram HTML status notification."""
+    detail_lines = [f"• {_escape_html(detail)}" for detail in details if str(detail).strip()]
+    parts = [
+        "ℹ️ <b>AI News Agent Status</b>",
+        "",
+        _escape_html(title),
+    ]
+    if detail_lines:
+        parts.extend(["", *detail_lines])
+    return _truncate_message("\n".join(parts).strip())
 
 
 def _validate_telegram_settings(token: str, chat_id: str) -> None:

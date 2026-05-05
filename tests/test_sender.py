@@ -88,6 +88,18 @@ def test_error_message_is_truncated():
     assert "truncated" in message
 
 
+def test_status_message_is_formatted_and_escaped():
+    message = sender.format_status_message(
+        "No post sent <today>.",
+        ["Fetched 2 candidate stories.", "All URLs were already seen & skipped."],
+    )
+
+    assert "AI News Agent Status" in message
+    assert "No post sent &lt;today&gt;." in message
+    assert "• Fetched 2 candidate stories." in message
+    assert "All URLs were already seen &amp; skipped." in message
+
+
 @patch("agent.sender.requests.post")
 def test_telegram_api_error_uses_description_without_token(mock_post):
     response = Mock()

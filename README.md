@@ -57,12 +57,14 @@ python main.py
 You can also run the test suite:
 
 ```bash
-pytest
+python -m pytest
 ```
 
 ## How to trigger manually
 
 Open your GitHub repository, go to `Actions`, choose the `AI News Agent` workflow, and click the `Run workflow` button.
+
+If a manual rerun finds only stories already listed in `data/seen_stories.json`, it will not post a duplicate news item. Instead, it sends a Telegram status message explaining that the run completed but skipped posting.
 
 ## Error notifications
 

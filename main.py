@@ -26,12 +26,24 @@ def main() -> int:
         _validate_stories(stories)
         if not stories:
             logger.info("No new stories today")
+            sender.send_status_to_telegram(
+                "No post sent today.",
+                ["No fresh AI or tech stories matched the configured sources."],
+            )
             return 0
 
+        fetched_count = len(stories)
         stories = dedup.filter_seen(stories)
         _validate_stories(stories)
         if not stories:
             logger.info("All stories already sent")
+            sender.send_status_to_telegram(
+                "No post sent today.",
+                [
+                    f"Fetched {fetched_count} candidate stories.",
+                    "All candidate story URLs were already in data/seen_stories.json.",
+                ],
+            )
             return 0
 
         post_dict = generator.generate_post(stories)
