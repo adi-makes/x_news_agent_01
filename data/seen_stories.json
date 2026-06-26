@@ -49,5 +49,6 @@
   "https://www.teachmecoolstuff.com/viewarticle/fine-tuning-a-local-llm-to-categorize-questions",
   "https://openai.com/index/daybreak-securing-the-world",
   "https://blogs.nvidia.com/blog/nvidia-aws-ai-production-scale/",
-  "https://huggingface.co/blog/nvidia/accelerating-fine-tuning-nvidia-nemo-automodel"
+  "https://huggingface.co/blog/nvidia/accelerating-fine-tuning-nvidia-nemo-automodel",
+  "https://huggingface.co/blog/vllm-jobs"
 ]
