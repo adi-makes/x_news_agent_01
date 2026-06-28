@@ -51,5 +51,6 @@
   "https://blogs.nvidia.com/blog/nvidia-aws-ai-production-scale/",
   "https://huggingface.co/blog/nvidia/accelerating-fine-tuning-nvidia-nemo-automodel",
   "https://huggingface.co/blog/vllm-jobs",
-  "https://blog.doubleword.ai/frontier-os-llm"
+  "https://blog.doubleword.ai/frontier-os-llm",
+  "https://github.com/kyuz0/amd-strix-halo-vllm-toolboxes/blob/main/rdma_cluster/setup_guide.md"
 ]
